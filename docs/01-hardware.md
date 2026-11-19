@@ -9,7 +9,7 @@
 - 两颗 WS2812 灯珠（本项目未使用）
 - 外部 SPI Flash 存固件，OTP bootloader 从 Flash 加载
 
-![原厂固件界面（用于识别设备）](images/device-stock.png)
+![盒马彩色电子价签实物照片（关机状态）](images/device-stock.png)
 
 
 ## 2. 两个硬件版本（重要）
