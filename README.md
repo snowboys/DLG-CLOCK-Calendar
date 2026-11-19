@@ -5,16 +5,15 @@
 - 上电即显示：公历年月日 / 星期、农历、干支年、生肖、24 节气、节日、当月月历网格、大字时钟
 - **不需要电脑常开、不需要 WiFi、不需要联网**：时间由固件本地 RTC 走时，断电后从 SPI Flash 快照恢复
 - 蓝牙**只用于对时**：浏览器 Web Bluetooth 页面 / 手机 nRF Connect / 一次性 Python 脚本，连上写一次 `0x91` 就能断开
-- 没有「主机未连接」提示，没有模拟监控数据；连接状态只表现为右上角的蓝牙小图标（绿=已连，灰=未连）
 
 <p align="center">
+ 设备实拍（脱机运行的万年历） 
   <img src="clock1.jpg" width="420" alt="盒马彩色电子价签实拍：离线万年历界面" />
+  
+  浏览器对时页（Chrome / Edge 直连，无需电脑常驻）
   <img src="clock-sync.jpg" width="420" alt="浏览器 Web Bluetooth 蓝牙对时页面" />
 </p>
 
-<p align="center"><sub>左：设备实拍（脱机运行的万年历） · 右：浏览器对时页（Chrome / Edge 直连，无需电脑常驻）</sub></p>
-
-> 屏幕中间的深色间隔是给物理漏液带（x 96..116）留的保护区，见 [硬件说明](docs/01-hardware.md)。
 
 本项目在 [luo-yihuan/DA14585-ble-monitor](https://gitee.com/luo-yihuan/DA14585-ble-monitor) 基础上改造，
 对时协议移植自 [tpunix/HMCLOCK](https://github.com/tpunix/HMCLOCK) 的 HMWEBCTRL。
