@@ -1,0 +1,14 @@
+# 统一换行符, 避免 Windows 下把脚本改成 CRLF 后跑到 Linux 出错
+* text=auto eol=lf
+
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# 二进制资源不做换行转换
+*.bin   binary
+*.hex   binary
+*.png   binary
+*.jpg   binary
+*.xlsx  binary
+*.stl   binary

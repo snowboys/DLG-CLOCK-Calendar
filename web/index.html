@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DLG-CLOCK 万年历 · 蓝牙对时</title>
+<style>
+  :root{
+    --primary:#3b82f6; --warn:#f59e0b; --ok:#10b981; --accent:#8b5cf6;
+    --danger:#ef4444; --text:#1e293b; --muted:#64748b; --line:#e2e8f0;
+    --card:#ffffff; --bg:#f0f9ff; --log:#0f172a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; padding:24px 16px 40px; color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    background-color:var(--bg);
+    background-image:
+      radial-gradient(at 40% 20%, rgba(59,130,246,.06) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, rgba(139,92,246,.06) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, rgba(16,185,129,.06) 0px, transparent 50%);
+  }
+  .wrap{width:100%; max-width:900px; margin:0 auto}
+  header{text-align:center; margin-bottom:22px}
+  h1{margin:0 0 6px; font-size:clamp(1.5rem,4vw,2.1rem); letter-spacing:.5px;
+     background:linear-gradient(90deg,var(--primary),var(--accent));
+     -webkit-background-clip:text; background-clip:text; color:transparent}
+  .sub{color:var(--muted); font-size:14px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+        box-shadow:0 2px 10px rgba(15,23,42,.05); padding:20px; margin-bottom:18px}
+  .warn{border:1px solid #fcd34d; background:#fffbeb; color:#92400e;
+        border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; margin-bottom:18px}
+  .hidden{display:none}
+  .buttons{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px}
+  .btn{border:0; border-radius:9px; padding:10px 18px; font-size:14px; font-weight:600;
+       color:#fff; cursor:pointer; transition:transform .18s,box-shadow .18s,opacity .18s;
+       display:inline-flex; align-items:center; gap:8px}
+  .btn:hover:not(:disabled){transform:translateY(-2px); box-shadow:0 6px 16px rgba(15,23,42,.14)}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .btn-primary{background:var(--primary)} .btn-off{background:var(--danger)}
+  .btn-warn{background:var(--warn)} .btn-ok{background:var(--ok)}
+  .btn-ghost{background:#e2e8f0; color:#334155}
+  .dot{width:8px; height:8px; border-radius:50%; background:currentColor; opacity:.75}
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .cell{background:#f8fafc; border:1px solid var(--line); border-radius:10px; padding:12px 14px}
+  .label{font-size:12px; color:var(--muted); margin-bottom:5px}
+  .val{font-size:17px; font-weight:600; font-variant-numeric:tabular-nums;
+       font-family:ui-monospace,SFMono-Regular,Consolas,monospace; word-break:break-all}
+  .val.good{color:var(--ok)} .val.bad{color:var(--danger)}
+  .log-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px}
+  .log-head h2{font-size:15px; margin:0}
+  .link{background:none; border:0; color:var(--muted); cursor:pointer; font-size:12px}
+  .link:hover{color:var(--danger)}
+  .log{background:var(--log); color:#e2e8f0; border-radius:10px; height:230px;
+       overflow-y:auto; padding:12px 14px; font-size:12.5px; line-height:1.65;
+       font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+  .entry{border-bottom:1px solid rgba(148,163,184,.12); padding:2px 0;
+         animation:fade .25s ease-in-out}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .ts{color:#64748b; margin-right:8px}
+  .entry.success .msg{color:#86efac} .entry.error .msg{color:#fca5a5}
+  .entry.warning .msg{color:#fcd34d} .entry.info .msg{color:#cbd5e1}
+  details.card{cursor:default} summary{font-weight:600; cursor:pointer; outline:none}
+  details .body{margin-top:14px; font-size:13.5px; line-height:1.8; color:#334155}
+  table{border-collapse:collapse; width:100%; margin:10px 0; font-size:13px}
+  th,td{border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top}
+  th{background:#f8fafc} code{background:#f1f5f9; padding:1px 5px; border-radius:4px;
+     font-family:ui-monospace,Consolas,monospace; font-size:12.5px}
+  footer{text-align:center; color:var(--muted); font-size:12px; line-height:1.8}
+  a{color:var(--primary); text-decoration:none} a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>DLG-CLOCK 万年历 · 蓝牙对时</h1>
+    <div class="sub">浏览器直连价签：同步时间 / 晶振漂移校准 · 无需 Python、无需电脑常驻</div>
+  </header>
+
+  <div id="secure-warn" class="warn hidden"></div>
+
+  <section class="card">
+    <div class="buttons">
+      <button id="btn-connect" class="btn btn-primary"><span class="dot"></span>连接设备</button>
+      <button id="btn-sync"     class="btn btn-warn" disabled>同步时间</button>
+      <button id="btn-cal"      class="btn btn-ok"   disabled>时间校准</button>
+      <button id="btn-refresh"  class="btn btn-ghost" disabled>刷新时间</button>
+    </div>
+
+    <div class="grid">
+      <div class="cell"><div class="label">设备名称</div><div class="val" id="device-name">未连接</div></div>
+      <div class="cell"><div class="label">当前电压</div><div class="val" id="voltage">--.- V</div></div>
+      <div class="cell"><div class="label">设备时间</div><div class="val" id="device-time">--:--:--</div></div>
+      <div class="cell"><div class="label">系统时间</div><div class="val" id="system-time">--:--:--</div></div>
+      <div class="cell"><div class="label">设备 − 系统</div><div class="val" id="delta">--</div></div>
+      <div class="cell"><div class="label">对时后运行 / 修正值</div><div class="val" id="cal-minute">--</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="log-head">
+      <h2>设备日志</h2>
+      <button id="btn-clear" class="link">清空日志</button>
+    </div>
+    <div id="log" class="log"><div class="entry info"><span class="msg">终端已启动，等待设备连接…</span></div></div>
+  </section>
+
+  <details class="card">
+    <summary>协议说明 / 使用要求</summary>
+    <div class="body">
+      <p><b>运行要求</b>：Web Bluetooth 需要 <b>HTTPS 或 http://localhost</b> 安全上下文，以及桌面 Chrome / Edge（或 Android Chrome）。
+      直接用 <code>file://</code> 打开、iOS Safari、Firefox 均不可用。若本地打开，可在仓库目录执行
+      <code>python -m http.server 8000 -d web</code> 后访问 <code>http://localhost:8000</code>。</p>
+
+      <p><b>GATT</b>：主服务 <code>0xFF00</code>（<code>0000ff00-0000-1000-8000-00805f9b34fb</code>），
+      长值特征 <code>0xFF01</code>（Read / Write Request），电池电压 <code>0xFF02</code>。</p>
+
+      <p><b>0x91 同步时间</b>（写入 0xFF01，最少 8 字节；本页按 HMCLOCK 原版发 12 字节）：</p>
+      <table>
+        <tr><th>字节</th><th>含义</th></tr>
+        <tr><td>[0]</td><td><code>0x91</code></td></tr>
+        <tr><td>[1..2]</td><td>年，uint16 小端（2026 → <code>EA 07</code>）</td></tr>
+        <tr><td>[3]</td><td>月，<b>0-based</b>（0=1月 … 11=12月）</td></tr>
+        <tr><td>[4]</td><td>日，1-based</td></tr>
+        <tr><td>[5..7]</td><td>时 / 分 / 秒</td></tr>
+        <tr><td>[8..11]</td><td>星期 / 农历年-2020 / 农历月 / 农历日（HMCLOCK 原版字段；本固件忽略并自行重算农历、星期、节气、节日）</td></tr>
+      </table>
+      <p>例：2026-11-19 09:30:00 → <code>91 EA 07 0A 13 09 1E 00</code>。
+      固件收到后立刻重算农历并写入 SPI Flash，<b>蓝牙断开后完全独立走时</b>。</p>
+
+      <p><b>0xFF01 回读</b>（连接期间固件每秒刷新一次，13 字节）：</p>
+      <table>
+        <tr><th>字节</th><th>含义</th></tr>
+        <tr><td>[0..1]</td><td>年，uint16 小端</td></tr>
+        <tr><td>[2] / [3]</td><td>月（0-based） / 日（1-based）</td></tr>
+        <tr><td>[4..6]</td><td>时 / 分 / 秒</td></tr>
+        <tr><td>[7..10]</td><td><code>cal_minute</code>，int32 小端：<b>距上次对时经过的分钟数</b>，<code>-1</code>=从未对时</td></tr>
+        <tr><td>[11..12]</td><td>当前时钟修正值（int16 小端低 16 位）</td></tr>
+      </table>
+
+      <p><b>0x92 时间校准</b>：先读取 <code>cal_minute</code>（需 ≥ 2880，即对时满 2 天，否则样本太短），
+      然后轮询 0xFF01 等设备分钟跳变，比较「设备跳变时刻」与「系统跳变时刻」算出秒差，
+      写入 <code>92 &lt;diff_lo&gt; &lt;diff_hi&gt; 00</code>（diff 为有符号 16 位小端，负数表示设备慢了）。
+      固件按 <code>diff/cal_minute</code> 调整 1 秒节拍，长期抵消晶振漂移。</p>
+
+      <p><b>手机替代方案</b>：nRF Connect 连接后对 <code>0000ff01-0000-1000-8000-00805f9b34fb</code>
+      写上述 12 字节 <code>0x91</code> 包即可，或用电脑执行
+      <code>python tools/sync_time.py</code>。</p>
+    </div>
+  </details>
+
+  <footer>
+    基于 <a href="https://github.com/tpunix/HMCLOCK" target="_blank" rel="noopener">tpunix/HMCLOCK</a> 的 HMWEBCTRL 对时协议移植 ·
+    上游项目 <a href="https://gitee.com/luo-yihuan/DA14585-ble-monitor" target="_blank" rel="noopener">luo-yihuan/DA14585-ble-monitor</a> · MIT
+  </footer>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  const SVC_UUID    = 0xff00;
+  const CHR_LONG    = 0xff01;
+  const CHR_ADC     = 0xff02;
+  const NAME_PREFIX = 'DLG-CLOCK';
+
+  let device = null, server = null, longValue = null, adcChar = null;
+  let connected = false, busy = false, envOK = true;
+  let deviceTimeBase = null, refreshTimer = null;
+
+  const $ = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function hex(b){
+    return Array.from(b).map((x) => x.toString(16).padStart(2,'0')).join(' ');
+  }
+  function fmt(d){
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+
+           pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+  function fmtTimeObj(t){
+    return fmt(new Date(t.year, t.month, t.day, t.hour, t.minute, t.second, 0));
+  }
+  function formatMinutes(m){
+    if(m < 0) return '未对时';
+    const d = Math.floor(m/1440), h = Math.floor((m%1440)/60), mm = m%60;
+    return (d ? d+'天' : '') + (h ? h+'时' : '') + mm + '分 (' + m + ' min)';
+  }
+
+  function log(msg, type){
+    type = type || 'info';
+    const line = document.createElement('div');
+    line.className = 'entry ' + type;
+    const ts = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+    line.innerHTML = '<span class="ts">['+esc(ts)+']</span><span class="msg">'+esc(msg)+'</span>';
+    const box = $('log');
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function updateButtons(){
+    const c = connected, b = busy;
+    const btn = $('btn-connect');
+    btn.textContent = c ? '断开连接' : '连接设备';
+    btn.className = 'btn ' + (c ? 'btn-off' : 'btn-primary');
+    btn.disabled = b || !envOK;
+    ['btn-sync','btn-cal','btn-refresh'].forEach((id) => { $(id).disabled = !c || b; });
+  }
+
+  function deviceNow(){
+    if(!deviceTimeBase) return null;
+    const b = deviceTimeBase;
+    const d = new Date(b.year, b.month, b.day, b.hour, b.minute, b.second, 0);
+    d.setTime(d.getTime() + (Date.now() - b.ts));
+    return d;
+  }
+
+  function updateDeviceTime(){
+    $('system-time').textContent = fmt(new Date());
+    const d = deviceNow();
+    $('device-time').textContent = d ? fmt(d) : '--:--:--';
+    if(d){
+      const delta = Math.round((d.getTime() - Date.now())/1000);
+      $('delta').textContent = (delta > 0 ? '+' : '') + delta + ' s';
+      $('delta').className = 'val ' + (Math.abs(delta) <= 2 ? 'good' : 'bad');
+    }else{
+      $('delta').textContent = '--';
+      $('delta').className = 'val';
+    }
+  }
+
+  function readDeviceTime(){
+    return longValue.readValue().then((v) => {
+      if(v.byteLength < 7) throw new Error('回读长度不足 ('+v.byteLength+'B)');
+      return {
+        year:      v.getUint16(0, true),
+        month:     v.getUint8(2),          // 0-based
+        day:       v.getUint8(3),          // 1-based
+        hour:      v.getUint8(4),
+        minute:    v.getUint8(5),
+        second:    v.getUint8(6),
+        calMinute: v.byteLength >= 11 ? v.getInt32(7, true) : -1,
+        fixup:     v.byteLength >= 13 ? v.getInt16(11, true) : 0,
+        ts:        Date.now()
+      };
+    });
+  }
+
+  // 刚写完 0x91/0x92 时，readValue 可能先返回「写入回显」(4~12 字节)，
+  // 固件 1Hz 的 clock_push() 会在 1 秒内把它覆盖成 13 字节时间值。这里自动重试。
+  async function readDeviceTimeWithRetry(maxTry){
+    maxTry = maxTry || 5;
+    let lastErr = null;
+    for(let i = 0; i < maxTry; i++){
+      try{ return await readDeviceTime(); }
+      catch(e){ lastErr = e; await sleep(400); }
+    }
+    throw lastErr || new Error('无法读取设备时间');
+  }
+
+  async function refreshDeviceTime(verbose){
+    if(!longValue) return null;
+    try{
+      const t = await readDeviceTimeWithRetry();
+      deviceTimeBase = t;
+      $('cal-minute').textContent = formatMinutes(t.calMinute) + ' / ' + t.fixup;
+      updateDeviceTime();
+      if(verbose) log('设备时间: '+fmtTimeObj(t)+'  |  对时后运行: '+t.calMinute+' 分钟  |  修正值: '+t.fixup);
+      return t;
+    }catch(e){
+      log('读取设备时间失败: '+(e.message || e), 'error');
+      return null;
+    }
+  }
+
+  function startRefresh(){
+    stopRefresh();
+    // 每 10 秒从设备重新读一次，修正晶振漂移造成的显示误差
+    refreshTimer = setInterval(() => {
+      if(connected && !busy) refreshDeviceTime(false);
+    }, 10000);
+  }
+  function stopRefresh(){
+    if(refreshTimer){ clearInterval(refreshTimer); refreshTimer = null; }
+  }
+
+  function onDisconnect(){
+    if(!connected) return;                 // 防重复触发
+    stopRefresh();
+    device = null; server = null; longValue = null; adcChar = null;
+    connected = false; deviceTimeBase = null;
+    $('device-name').textContent = '未连接';
+    $('voltage').textContent = '--.- V';
+    $('device-time').textContent = '--:--:--';
+    $('cal-minute').textContent = '--';
+    $('delta').textContent = '--'; $('delta').className = 'val';
+    log('设备已断开连接', 'warning');
+    updateButtons();
+  }
+
+  function doDisconnect(){
+    if(!connected) return;
+    stopRefresh();
+    if(device && device.gatt && device.gatt.connected){
+      try{ device.gatt.disconnect(); }catch(e){ onDisconnect(); }
+    }else{
+      onDisconnect();
+    }
+  }
+
+  async function connect(){
+    busy = true; updateButtons();
+    try{
+      log('请求蓝牙设备…');
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{namePrefix: NAME_PREFIX}],
+        optionalServices: [SVC_UUID]
+      });
+      log('已选择: '+(device.name || '(未知)'));
+      device.addEventListener('gattserverdisconnected', onDisconnect);
+
+      log('连接 GATT Server…（Windows Realtek 适配器服务发现可能要 20~30 秒）');
+      server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(SVC_UUID);
+      longValue = await svc.getCharacteristic(CHR_LONG);
+      try{ adcChar = await svc.getCharacteristic(CHR_ADC); }catch(e){ adcChar = null; }
+
+      connected = true;
+      $('device-name').textContent = device.name || '--';
+
+      if(adcChar){
+        try{
+          const v = await adcChar.readValue();
+          $('voltage').textContent = (v.getUint16(0,true)/1000).toFixed(2)+' V';
+        }catch(e){ $('voltage').textContent = '--'; }
+      }else{
+        $('voltage').textContent = '--';
+      }
+
+      await refreshDeviceTime(true);
+      startRefresh();
+      log('设备已连接', 'success');
+    }catch(e){
+      log('连接失败: '+(e && e.message ? e.message : e), 'error');
+      doDisconnect();
+    }finally{
+      busy = false; updateButtons();
+    }
+  }
+
+  function writeChar(value){
+    // 与 HMWEBCTRL 一致使用 writeValue；若特征支持带响应写入则优先，
+    // 保证「写完再读」的顺序。
+    if(longValue.properties && longValue.properties.write &&
+       typeof longValue.writeValueWithResponse === 'function'){
+      return longValue.writeValueWithResponse(value);
+    }
+    return longValue.writeValue(value);
+  }
+
+  function waitWholeSecond(){
+    return new Promise((r) => setTimeout(r, 1000 - (Date.now() % 1000)));
+  }
+
+  function lunarFields(now){
+    // HMWEBCTRL / HMCLOCK 原包格式。本固件会自行重算农历，这些字节仅用于兼容原版固件。
+    let ly = 0, lm = 0, ld = 1;
+    try{
+      let s = now.toLocaleDateString('zh-CN-u-ca-chinese',{month:'numeric',day:'numeric'});
+      let leap = s.startsWith('闰') ? 128 : 0;
+      if(leap) s = s.slice(1);
+      const parts = s.split('-').map(Number);
+      lm = (parts[0] - 1) + leap;
+      ld = parts[1] || 1;
+      ly = parseInt(now.toLocaleDateString('zh-CN-u-ca-chinese',{year:'numeric'}), 10) - 2020;
+      if(!isFinite(ly)) ly = 0;
+    }catch(e){ /* 不支持 chinese 历法时保持 0 */ }
+    return [ly & 0xff, lm & 0xff, ld & 0xff];
+  }
+
+  async function onSync(){
+    if(!connected || busy) return;
+    busy = true; updateButtons();
+    try{
+      await waitWholeSecond();
+      const now = new Date();
+      const lunar = lunarFields(now);
+      const buf = new Uint8Array([
+        0x91,
+        now.getFullYear() & 0xff, (now.getFullYear() >> 8) & 0xff,
+        now.getMonth(), now.getDate(),
+        now.getHours(), now.getMinutes(), now.getSeconds(),
+        now.getDay(), lunar[0], lunar[1], lunar[2]
+      ]);
+      log('整秒对齐，发送 0x91: '+hex(buf));
+      await writeChar(buf);
+      deviceTimeBase = {
+        year:now.getFullYear(), month:now.getMonth(), day:now.getDate(),
+        hour:now.getHours(), minute:now.getMinutes(), second:now.getSeconds(),
+        calMinute:0, fixup:0, ts:Date.now()
+      };
+      updateDeviceTime();
+      await sleep(400);
+      const t = await refreshDeviceTime(false);
+      if(t) log('设备回读: '+fmtTimeObj(t), 'success');
+      log('同步时间成功：'+fmt(now)+'（固件已重算农历/星期并写入 Flash，断开后独立走时）', 'success');
+    }catch(e){
+      log('同步时间失败: '+(e.message || e), 'error');
+    }finally{
+      busy = false; updateButtons();
+    }
+  }
+
+  async function onCalibration(){
+    if(!connected || busy) return;
+    busy = true; updateButtons();
+    try{
+      let t = await readDeviceTimeWithRetry();
+      const cm = t.calMinute;
+      if(cm < 0){ log('请先点击「同步时间」（设备尚未对时）', 'error'); return; }
+      if(cm < 2880){
+        log('对时后仅 '+cm+' 分钟，样本太短（需 ≥2880 分钟 / 2 天）', 'warning');
+        return;
+      }
+      log('对时后已运行 '+cm+' 分钟，等待设备分钟跳变（最多 70 秒）…');
+      const lastMinute = t.minute;
+      const deadline = Date.now() + 70000;
+      while(Date.now() < deadline){
+        await sleep(400);
+        t = await readDeviceTimeWithRetry();
+        if(t.minute !== lastMinute) break;
+      }
+      if(t.minute === lastMinute){
+        log('等待超时：设备时间未推进，请检查连接后重试', 'error');
+        return;
+      }
+
+      const sys = new Date();
+      let dm = t.minute, sm = sys.getMinutes();
+      if(dm > sm){ if(dm - sm > 50) sm += 60; }
+      else       { if(sm - dm > 50) dm += 60; }
+      const diff = (dm*60 + t.second) - (sm*60 + sys.getSeconds());
+      const buf = new Uint8Array([0x92, diff & 0xff, (diff >> 8) & 0xff, 0x00]);
+      log('设备跳变: '+t.minute+'分'+t.second+'秒  |  系统: '+sm+'分'+sys.getSeconds()+'秒  |  时间差: '+diff+'秒');
+      await writeChar(buf);
+      log('时间校准完成，已发送 0x92: '+hex(buf), 'success');
+      await sleep(400);
+      await refreshDeviceTime(false);
+    }catch(e){
+      log('时间校准失败: '+(e.message || e), 'error');
+    }finally{
+      busy = false; updateButtons();
+    }
+  }
+
+  async function onRefresh(){
+    if(!connected || busy) return;
+    busy = true; updateButtons();
+    try{ await refreshDeviceTime(true); }
+    finally{ busy = false; updateButtons(); }
+  }
+
+  function checkEnv(){
+    const supported = ('bluetooth' in navigator);
+    const secure = !!window.isSecureContext;
+    envOK = supported && secure;
+    if(!envOK){
+      const el = $('secure-warn');
+      el.classList.remove('hidden');
+      el.innerHTML = !supported
+        ? '此浏览器不支持 Web Bluetooth。请使用桌面版 <b>Chrome / Edge</b>（或 Android Chrome），并通过 <b>HTTPS 或 http://localhost</b> 打开本页。'
+        : 'Web Bluetooth 需要安全上下文。当前页面不是 HTTPS / localhost，请改用 GitHub Pages 地址，或在本地执行 <code>python -m http.server 8000 -d web</code> 后访问 <code>http://localhost:8000</code>。';
+      log('环境检查未通过：'+(!supported ? '浏览器不支持 Web Bluetooth' : '非安全上下文'), 'error');
+    }
+    updateButtons();
+  }
+
+  $('btn-connect').addEventListener('click', () => {
+    if(connected) doDisconnect(); else connect();
+  });
+  $('btn-sync').addEventListener('click', onSync);
+  $('btn-cal').addEventListener('click', onCalibration);
+  $('btn-refresh').addEventListener('click', onRefresh);
+  $('btn-clear').addEventListener('click', () => {
+    $('log').innerHTML = '<div class="entry info"><span class="msg">日志已清空</span></div>';
+  });
+
+  checkEnv();
+  updateDeviceTime();
+  setInterval(updateDeviceTime, 1000);
+})();
+</script>
+</body>
+</html>
