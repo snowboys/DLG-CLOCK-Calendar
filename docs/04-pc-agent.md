@@ -69,7 +69,7 @@ CPU  65%  GPU  36%  RAM  79.3%  C:  94%  DL       3.5 KB/s  UL       4.9 KB/s  W
 
 ```bat
 @echo off
-cd /d C:\path\to\bms-ble-monitor
+cd /d C:\path\to\DLG-CLOCK-Calendar
 start "" /min pythonw tools\pc_agent.py
 ```
 
@@ -80,7 +80,7 @@ start "" /min pythonw tools\pc_agent.py
 1. 打开「任务计划程序」→ 创建任务
 2. 常规：勾选「不管用户是否登录都要运行」可省去登录依赖（也可只勾「使用最高权限运行」）
 3. 触发器：登录时
-4. 操作：程序 `pythonw.exe`，参数 `tools\pc_agent.py`，起始于 `C:\path\to\bms-ble-monitor`
+4. 操作：程序 `pythonw.exe`，参数 `tools\pc_agent.py`，起始于 `C:\path\to\DLG-CLOCK-Calendar`
 5. 设置：勾选「如果任务失败，按以下频率重新启动：1 分钟」
 
 ## 6. CPU 温度为什么会偏低（以及怎么变准）
@@ -105,7 +105,7 @@ Windows 桌面版**不对外提供 CPU 核心（DIE）温度**。脚本按优先
 2. 右键「Windows PowerShell」→ **以管理员身份运行**，执行：
 
 ```bat
-cd /d C:\path\to\bms-ble-monitor
+cd /d C:\path\to\DLG-CLOCK-Calendar
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\install_temp_daemon.ps1
 ```
 

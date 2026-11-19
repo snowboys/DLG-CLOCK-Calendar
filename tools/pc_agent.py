@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-pc_agent.py — 采集本机 CPU / 内存 / 网络速度, 通过 BLE 推送到 BMS 价签(DA14585)
+pc_agent.py — 采集本机 CPU / 内存 / 网络速度, 通过 BLE 推送到盒马彩色电子价签(DA14585)
 
 用法:
     python tools\\pc_agent.py                 # 自动扫描 DLG-CLOCK-* 设备
