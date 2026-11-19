@@ -324,11 +324,27 @@
       log('已选择: '+(device.name || '(未知)'));
       device.addEventListener('gattserverdisconnected', onDisconnect);
 
-      log('连接 GATT Server…（Windows Realtek 适配器服务发现可能要 20~30 秒）');
-      server = await device.gatt.connect();
-      const svc = await server.getPrimaryService(SVC_UUID);
-      longValue = await svc.getCharacteristic(CHR_LONG);
-      try{ adcChar = await svc.getCharacteristic(CHR_ADC); }catch(e){ adcChar = null; }
+      // Windows Realtek 适配器偶尔会在几秒内直接抛出
+      // "Connection Error: Connection attempt failed."，属于瞬时坏状态。
+      // 复用已授权的 device 对象重试，不要重新弹系统选择器。
+      let lastErr = null;
+      for(let attempt = 1; attempt <= 3; attempt++){
+        try{
+          if(attempt === 1) log('连接 GATT Server…（Windows Realtek 适配器服务发现可能要 20~30 秒）');
+          else log('第 '+attempt+' 次重连…', 'warning');
+          server = await device.gatt.connect();
+          const svc = await server.getPrimaryService(SVC_UUID);
+          longValue = await svc.getCharacteristic(CHR_LONG);
+          try{ adcChar = await svc.getCharacteristic(CHR_ADC); }catch(e){ adcChar = null; }
+          lastErr = null;
+          break;
+        }catch(err){
+          lastErr = err;
+          try{ if(device.gatt.connected) device.gatt.disconnect(); }catch(_){}
+          if(attempt < 3) await sleep(1500 * attempt);
+        }
+      }
+      if(lastErr) throw lastErr;
 
       connected = true;
       $('device-name').textContent = device.name || '--';
@@ -347,7 +363,11 @@
       log('设备已连接', 'success');
     }catch(e){
       log('连接失败: '+(e && e.message ? e.message : e), 'error');
-      doDisconnect();
+      log('建议：Windows 设置里把蓝牙关闭再打开一次，或重启浏览器后强制刷新(Ctrl+F5)本页再试', 'warning');
+      // connected 仍为 false 时 doDisconnect() 会直接 return，这里显式清理残留 GATT 状态
+      try{ if(device && device.gatt && device.gatt.connected) device.gatt.disconnect(); }catch(_){}
+      device = null; server = null; longValue = null; adcChar = null; connected = false;
+      updateButtons();
     }finally{
       busy = false; updateButtons();
     }
