@@ -134,6 +134,9 @@ set PANEL_MIDDLE=1 && python build.py --gcc <arm-none-eabi\bin>   :: 中间灯�
 `build.py` 按源码内容自动生成 `EPD_VERSION`，`selflash()` 靠它判断是否需要把新镜像写进 Flash。
 详见 [02 编译环境与构建](docs/02-build.md)。
 
+## 对时与校准
+固件烧写成功后，浏览器 Web Bluetooth 对时与校准。访问地址：https://snowboys.github.io/DLG-CLOCK-Calendar/web/
+
 ## 文档索引
 
 - [11 浏览器 Web Bluetooth 对时与校准](docs/11-web-timesync.md) ← **日常使用入口**
